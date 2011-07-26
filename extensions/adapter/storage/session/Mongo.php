@@ -26,6 +26,8 @@ class Mongo extends \lithium\core\Object {
 	protected $_defaults = array(
 		'connection'              => 'default',
 		'session.use_trans_sid'   => 0,
+		'session.save_handler'    => 'user',
+		'session.use_cookies'     => 1,
 		'session.name'            => null,
 		'timeout'                 => 1200,
 	);
@@ -51,6 +53,15 @@ class Mongo extends \lithium\core\Object {
 		if (!isset($this->_config['session.name'])) {
 			$this->_config['session.name'] = basename(LITHIUM_APP_PATH);
 		}
+		
+		session_set_save_handler(
+			array($this, "open"),
+			array($this, "close"),
+			array($this, "read"),
+			array($this, "write"),
+			array($this, "destroy"),
+			array($this, "gc")
+		);
 		
 		foreach ($this->_config as $key => $value) {
 			if (strpos($key, 'session.') === false) {
@@ -83,6 +94,47 @@ class Mongo extends \lithium\core\Object {
 			$entity->save();
 		}
 		return $entity;
+	}
+	
+	/**
+	 * Placeholder function for session_set_save_handler.
+	 *
+	 * @return boolean Success result.
+	 */
+	public function open($path, $name) {
+		return true;
+	}
+	
+	/**
+	 * Placeholder function for session_set_save_handler.
+	 *
+	 * @return boolean Success result.
+	 */
+	public function close() {
+		return true;
+	}
+	
+	/**
+	 * Session destruction mechanism.
+	 *
+	 * @return void
+	 */
+	public function destroy() {
+		$entity = $this->_getEntity();
+		$entity->delete();
+	}
+	
+	/**
+	 * Session garbage collector.
+	 *
+	 * @return void
+	 */
+	public function gc($maxLifetime = null) {
+		$model = $this->_classes['model'];
+		$expires = $maxLifetime ?: time();
+		$entity = $model::remove(array(
+				'expires' => array('$lt' => $expires),
+		));
 	}
 	
 	/**
